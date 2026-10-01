@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gwyne's Ethereal Flashcards</title>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;800&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #a364ff;
+            --primary-glow: rgba(163, 100, 255, 0.4);
+            --deep: #2d005f;
+            --glass: rgba(255, 255, 255, 0.45);
+            --glass-border: rgba(255, 255, 255, 0.7);
+            --radius-lg: 40px;
+            --radius-md: 24px;
+            --font-main: 'Plus Jakarta Sans', sans-serif;
+            --font-head: 'Syne', sans-serif;
+            --modal-bg: linear-gradient(145deg, #2d005f 0%, #4a0096 100%);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: var(--font-main);
+            background: #f0eaff;
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+            color: var(--deep);
+        }
+
+        .bg-blob {
+            position: fixed;
+            width: 500px; height: 500px;
+            background: linear-gradient(135deg, #c3a1ff 0%, #8ec5fc 100%);
+            filter: blur(80px);
+            border-radius: 50%;
+            z-index: -1;
+            animation: float 20s infinite alternate;
+        }
+        .blob-1 { top: -100px; left: -100px; }
+        .blob-2 { bottom: -100px; right: -100px; animation-delay: -5s; }
+
+        @keyframes float {
+            0% { transform: translate(0, 0) rotate(0deg); }
+            100% { transform: translate(100px, 50px) rotate(90deg); }
+        }
+
+        .sidebar {
+            width: 340px; margin: 25px;
+            background: var(--glass);
+            backdrop-filter: blur(30px) saturate(180%);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--glass-border);
+            display: flex; flex-direction: column;
+            z-index: 100;
+        }
+        .sidebar-header { padding: 50px 30px 20px; }
+        .sidebar-header h1 { 
+            font-family: var(--font-head);
+            font-size: 2.2rem; 
+            background: linear-gradient(45deg, var(--deep), var(--primary));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+
+        .deck-list { flex: 1; overflow-y: auto; padding: 10px 20px; }
+        .folder-container { margin-bottom: 15px; border-radius: var(--radius-md); overflow: hidden; }
+        
+        .folder-header {
+            padding: 18px 22px; font-weight: 700;
+            display: flex; justify-content: space-between; align-items: center;
+            cursor: pointer; background: rgba(255,255,255,0.2);
+            text-transform: uppercase; font-size: 0.7rem; letter-spacing: 1.5px; transition: 0.3s;
+        }
+        .folder-header:hover { background: rgba(255,255,255,0.4); }
+        .folder-settings-trigger { font-size: 0.9rem; opacity: 0.5; transition: 0.3s; padding: 5px; }
+
+        .deck-item {
+            padding: 14px 20px; cursor: move; border-radius: 18px;
+            margin: 5px 10px; display: flex; justify-content: space-between;
+            font-weight: 600; transition: 0.3s; font-size: 0.9rem;
+            border: 1px solid transparent;
+        }
+        .deck-item:hover { background: rgba(255,255,255,0.3); }
+        .deck-item.active { background: white; color: var(--primary); box-shadow: 0 10px 20px var(--primary-glow); }
+        .deck-item.dragging { opacity: 0.5; border: 1px dashed var(--primary); }
+        .deck-dots { opacity: 0.3; padding: 0 10px; margin-right: -10px; transition: 0.2s; cursor: pointer; }
+        .deck-dots:hover { opacity: 1; transform: scale(1.2); }
+
+        .deck-dropdown {
+            position: fixed; background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(15px); border-radius: 20px;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.15); display: none;
+            flex-direction: column; z-index: 2000; border: 1px solid var(--glass-border);
+            min-width: 180px; overflow: hidden; padding: 5px;
+        }
+        .dropdown-item { 
+            padding: 12px 18px; font-size: 0.7rem; font-weight: 800; 
+            cursor: pointer; text-transform: uppercase; letter-spacing: 1px;
+            border-radius: 12px; transition: 0.2s;
+        }
+        .dropdown-item:hover { background: var(--primary); color: white; }
+
+        .workspace { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 50px; }
+        .deck-info { text-align: center; margin-bottom: 50px; margin-top: 30px; }
+        .deck-info h2 { font-family: var(--font-head); font-size: 1.5rem; margin-top: 30px; }
+
+        .card-stage { width: 100%; max-width: 680px; perspective: 2000px; }
+        .card {
+            background: none; aspect-ratio: 1.7 / 1; 
+            cursor: pointer; transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-style: preserve-3d; position: relative;
+        }
+        .card.flipped { transform: rotateY(180deg); }
+        .card-side { 
+            position: absolute; backface-visibility: hidden; 
+            width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; 
+            padding: 50px; text-align: center; border-radius: 50px;
+            background: white; box-shadow: 0 50px 100px rgba(74, 0, 150, 0.08);
+            transition: opacity 0.2s ease;
+        }
+        .card-back { transform: rotateY(180deg); background: linear-gradient(135deg, #fdfbff 0%, #f3ebff 100%); }
+        .card-text { font-size: 2rem; font-weight: 700; color: var(--deep); }
+
+        .edit-card-btn {
+            position: absolute; bottom: 30px; right: 30px;
+            background: var(--deep); color: white; padding: 10px 20px; border-radius: 30px;
+            font-size: 0.65rem; font-weight: 800; opacity: 0; transition: 0.3s; text-transform: uppercase;
+        }
+        .card-side:hover .edit-card-btn { opacity: 0.8; }
+        .locked-mode .edit-card-btn { display: none !important; }
+
+        .nav-btn {
+            background: var(--glass); border: 1px solid var(--glass-border);
+            padding: 18px 28px; border-radius: 25px; cursor: pointer;
+            font-weight: 800; text-transform: uppercase; font-size: 0.7rem;
+            letter-spacing: 1px; backdrop-filter: blur(10px); transition: 0.2s;
+        }
+        .nav-btn:hover { background: rgba(255,255,255,0.6); }
+        .btn-p { background: var(--deep); color: white; border: none; padding: 18px 45px; border-radius: 30px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; transition: 0.3s; }
+
+        /* MODALS */
+        .modal { 
+            position: fixed; inset: 0; 
+            background: rgba(45, 0, 95, 0.4); 
+            backdrop-filter: blur(15px); 
+            display: none; place-items: center; z-index: 10000; 
+        }
+        .modal.open { display: grid; }
+        .modal-body { 
+            background: var(--modal-bg); 
+            width: 95%; max-width: 500px; 
+            border-radius: 50px; padding: 50px; 
+            box-shadow: 0 60px 120px rgba(0,0,0,0.3);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        input, textarea, select { 
+            width: 100%; padding: 18px; border-radius: 20px; 
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2); 
+            margin-top: 15px; outline: none; font-family: inherit; 
+            font-weight: 600; color: white;
+        }
+        .modal-btn-p { 
+            background: white; color: var(--deep); border: none; padding: 18px 45px; 
+            border-radius: 30px; font-weight: 800; text-transform: uppercase; 
+            cursor: pointer; transition: 0.3s; margin-top: 20px;
+        }
+        .modal-btn-sec { 
+            background: transparent; color: white; border: 1px solid rgba(255,255,255,0.3); 
+            padding: 16px 28px; border-radius: 25px; cursor: pointer; font-weight: 800; 
+            text-transform: uppercase; font-size: 0.7rem; margin-top: 20px;
+        }
+
+        #browseModal .modal-body { max-width: 1100px; width: 92%; max-height: 85vh; overflow-y: auto; padding: 0; background: #f9f6ff; color: var(--deep); }
+        .browse-header { display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(15px); z-index: 100; padding: 45px 50px 25px; border-bottom: 1px solid rgba(0,0,0,0.05); }
+        .browse-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 25px; padding: 30px 50px 50px; }
+        .mini-card { background: #ffffff; padding: 30px; border-radius: 35px; border: 1px solid rgba(0,0,0,0.05); position: relative; }
+        .mini-q { font-weight: 800; color: var(--primary); font-size: 0.7rem; margin-bottom: 8px; text-transform: uppercase; }
+        .mini-a { font-size: 1.05rem; font-weight: 600; line-height: 1.5; color: var(--deep); }
+        .mini-edit-btn { position: absolute; top: 20px; right: 20px; background: #f0eaff; color: var(--primary); padding: 5px 12px; border-radius: 12px; font-size: 0.6rem; font-weight: 800; cursor: pointer; border: none; text-transform: uppercase; }
+    </style>
+</head>
+<body id="appBody">
+    <div class="bg-blob blob-1"></div>
+    <div class="bg-blob blob-2"></div>
+
+    <aside class="sidebar">
+        <div class="sidebar-header"><h1>Gwyne.</h1></div>
+        <div class="deck-list" id="deckList"></div>
+        <div style="padding: 40px; display: flex; flex-direction: column; gap: 15px;">
+            <button class="btn-p" onclick="app.showDeckModal()">Add Deck</button>
+            <button class="nav-btn" onclick="app.showFolderModal()">New Folder</button>
+        </div>
+    </aside>
+
+    <div id="deckDropdown" class="deck-dropdown">
+        <div class="dropdown-item" id="dropRename">Rename Deck</div>
+        <div style="height:1px; background:rgba(0,0,0,0.05); margin:5px 0;"></div>
+        <div class="dropdown-item" style="color:#ff4757" id="dropDel">Delete Deck</div>
+    </div>
+
+    <main class="workspace">
+        <div class="deck-info">
+            <span id="currentPath" style="font-size: 0.7rem; font-weight: 800; color: var(--primary); letter-spacing: 3px;">STUDY MODE</span>
+            <h2 id="currentDeckTitle">Select a Deck</h2>
+        </div>
+
+        <div class="card-stage">
+            <div class="card" id="mainCard">
+                <div class="card-side card-front" onclick="app.flip()">
+                    <div class="card-text" id="qText"></div>
+                    <div class="edit-card-btn" onclick="event.stopPropagation(); app.showEditCardModal()">Edit Card</div>
+                </div>
+                <div class="card-side card-back" onclick="app.flip()">
+                    <div class="card-text" id="aText"></div>
+                    <div class="edit-card-btn" onclick="event.stopPropagation(); app.showEditCardModal()">Edit Card</div>
+                </div>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 30px; align-items: center; margin: 40px 0;">
+            <button class="nav-btn" onclick="app.prev()">Back</button>
+            <div style="font-weight: 800; color: var(--primary);" id="counter">0 / 0</div>
+            <button class="nav-btn" onclick="app.next()">Next</button>
+        </div>
+
+        <div style="display: flex; gap: 20px; flex-wrap: wrap; justify-content: center;">
+            <button class="nav-btn" onclick="app.shuffle()" style="color:var(--primary); border-color:var(--primary)">Super Shuffle</button>
+            <button class="nav-btn" onclick="app.showMagicModal()">Magic Paste</button>
+            <button class="nav-btn" onclick="app.showBrowseModal()">View All</button>
+            <button class="nav-btn" id="lockBtn" onclick="app.toggleLock()">Lock Edits</button>
+            <button class="btn-p" onclick="app.showAddCardModal()">Add Card</button>
+        </div>
+    </main>
+
+    <div class="modal" id="browseModal"><div class="modal-body"><div class="browse-header"><h2>Deck Overview</h2><button class="nav-btn" onclick="app.closeBrowseModal()">Close</button></div><div class="browse-grid" id="browseGrid"></div></div></div>
+    <div class="modal" id="cardModal"><div class="modal-body"><h2 id="modalTitle">Card</h2><input type="text" id="qIn" placeholder="Question"><textarea id="aIn" placeholder="Answer" style="height: 120px;"></textarea><div style="display: flex; gap: 15px; margin-top: 20px; justify-content: flex-end;"><button class="modal-btn-sec" onclick="app.closeCardModal()">Cancel</button><button class="modal-btn-p" onclick="app.saveCardData()">Save</button></div></div></div>
+    <div class="modal" id="magicModal"><div class="modal-body"><h2>Magic Paste</h2><textarea id="magicInput" style="height: 250px;" placeholder="Question : Answer"></textarea><div style="display: flex; gap: 15px; justify-content: flex-end;"><button class="modal-btn-sec" onclick="app.closeMagicModal()">Cancel</button><button class="modal-btn-p" onclick="app.generateFromNotes()">Generate</button></div></div></div>
+    <div class="modal" id="folderModal"><div class="modal-body"><h2>New Folder</h2><input type="text" id="folderNameInput" placeholder="Folder Name..."><div style="display: flex; justify-content: flex-end;"><button class="modal-btn-p" onclick="app.addFolder()">Create</button></div></div></div>
+    <div class="modal" id="deckModal"><div class="modal-body"><h2>Deck Settings</h2><select id="folderSelect"></select><input type="text" id="deckNameInput" placeholder="Deck Name..."><div style="display: flex; justify-content: flex-end;"><button class="modal-btn-p" onclick="app.handleDeckSubmit()">Save</button></div></div></div>
+    <div class="modal" id="folderEditModal"><div class="modal-body"><h2>Folder Settings</h2><input type="text" id="folderEditInput" placeholder="New Folder Name..."><div style="display: flex; gap: 15px; justify-content: flex-end;"><button class="modal-btn-sec" onclick="app.closeFolderEditModal()">Cancel</button><button class="modal-btn-p" onclick="app.saveFolderRename()">Save</button></div></div></div>
+    <div class="modal" id="deckRenameModal"><div class="modal-body"><h2>Rename Deck</h2><input type="text" id="deckRenameInput" placeholder="New Deck Name..."><div style="display: flex; gap: 15px; justify-content: flex-end;"><button class="modal-btn-sec" onclick="app.closeDeckRenameModal()">Cancel</button><button class="modal-btn-p" onclick="app.saveDeckRename()">Save</button></div></div></div>
+
+    <script>
+        class GwyneApp {
+            constructor() {
+                const saved = localStorage.getItem('gwyne_vFinal_Drag');
+                this.db = saved ? JSON.parse(saved) : { 
+                    folders: { "General": { "Quick Deck": [{q: "Welcome", a: "Gwyne's Studio"}] } }, 
+                    currentFolder: "General", currentDeck: "Quick Deck", openFolders: ["General"] 
+                };
+                this.idx = 0; 
+                this.isLocked = false; 
+                this.isEditingCard = false;
+                this.init();
+            }
+
+            init() { 
+                this.render(); 
+                window.addEventListener('click', () => document.getElementById('deckDropdown').style.display = 'none'); 
+            }
+
+            save() { localStorage.setItem('gwyne_vFinal_Drag', JSON.stringify(this.db)); }
+
+            flip() { document.getElementById('mainCard').classList.toggle('flipped'); }
+
+            async changeCard(newIdx) {
+                const cardEl = document.getElementById('mainCard');
+                const front = cardEl.querySelector('.card-front');
+                const back = cardEl.querySelector('.card-back');
+                if (cardEl.classList.contains('flipped')) {
+                    cardEl.classList.remove('flipped');
+                    await new Promise(r => setTimeout(r, 400));
+                }
+                front.style.opacity = '0'; back.style.opacity = '0';
+                setTimeout(() => {
+                    this.idx = newIdx; this.render();
+                    front.style.opacity = '1'; back.style.opacity = '1';
+                }, 150);
+            }
+
+            next() { const d = this.db.folders[this.db.currentFolder][this.db.currentDeck]; if(d && this.idx < d.length - 1) this.changeCard(this.idx + 1); }
+            prev() { if(this.idx > 0) this.changeCard(this.idx - 1); }
+
+            shuffle() {
+                const deck = this.db.folders[this.db.currentFolder][this.db.currentDeck];
+                if (!deck || deck.length < 2) return;
+                for (let i = deck.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [deck[i], deck[j]] = [deck[j], deck[i]];
+                }
+                this.changeCard(0); this.save();
+            }
+
+            render() {
+                const list = document.getElementById('deckList');
+                list.innerHTML = Object.keys(this.db.folders).map(f => {
+                    const decksInFolder = Object.keys(this.db.folders[f]);
+                    return `
+                    <div class="folder-container" ondragover="app.handleDragOver(event)" ondrop="app.handleDrop(event, '${f}')">
+                        <div class="folder-header" onclick="app.toggleFolder('${f}')">
+                            <span>${f} <span class="folder-settings-trigger" onclick="app.showFolderEditModal(event, '${f}')">⚙</span></span>
+                            <span>${this.db.openFolders.includes(f) ? '▼' : '▲'}</span>
+                        </div>
+                        <div style="display: ${this.db.openFolders.includes(f) ? 'block' : 'none'}" class="folder-content">
+                            ${decksInFolder.map(d => `
+                                <div class="deck-item ${d === this.db.currentDeck && f === this.db.currentFolder ? 'active' : ''}" 
+                                     draggable="true" 
+                                     ondragstart="app.handleDragStart(event, '${f}', '${d}')"
+                                     ondragend="app.handleDragEnd(event)"
+                                     onclick="app.setDeck('${f}', '${d}')">
+                                    <span>${d}</span><span class="deck-dots" onclick="app.openDeckMenu(event, '${f}', '${d}')">⋮</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>`;
+                }).join('');
+
+                const d = (this.db.folders[this.db.currentFolder] || {})[this.db.currentDeck];
+                document.getElementById('currentDeckTitle').innerText = this.db.currentDeck || "Select Deck";
+                document.getElementById('currentPath').innerText = this.db.currentFolder || "Mode";
+                
+                if(d && d.length > 0) {
+                    document.getElementById('qText').innerText = d[this.idx].q;
+                    document.getElementById('aText').innerText = d[this.idx].a;
+                    document.getElementById('counter').innerText = `${this.idx + 1} / ${d.length}`;
+                } else {
+                    document.getElementById('qText').innerText = "Empty"; 
+                    document.getElementById('aText').innerText = "Add cards!";
+                    document.getElementById('counter').innerText = "0 / 0";
+                }
+            }
+
+            /* --- Drag & Drop Logic --- */
+            handleDragStart(e, folder, deck) {
+                this.draggedDeck = { folder, deck };
+                e.target.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+            }
+            handleDragEnd(e) { e.target.classList.remove('dragging'); }
+            handleDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }
+            handleDrop(e, targetFolder) {
+                e.preventDefault();
+                const { folder: sourceFolder, deck: deckName } = this.draggedDeck;
+                
+                // Remove from old position
+                const sourceData = this.db.folders[sourceFolder][deckName];
+                delete this.db.folders[sourceFolder][deckName];
+
+                // If dropping into a different folder, it goes to the end
+                // If dropping into same folder, we determine order by where it was dropped
+                const folder = this.db.folders[targetFolder];
+                const decks = Object.keys(folder);
+                
+                // Simple logic: add to the end of the target folder
+                folder[deckName] = sourceData;
+
+                this.db.currentFolder = targetFolder;
+                this.save();
+                this.render();
+            }
+
+            toggleFolder(f) { const i = this.db.openFolders.indexOf(f); i > -1 ? this.db.openFolders.splice(i, 1) : this.db.openFolders.push(f); this.save(); this.render(); }
+            setDeck(f, d) { this.db.currentFolder = f; this.db.currentDeck = d; this.idx = 0; this.render(); }
+            toggleLock() { this.isLocked = !this.isLocked; document.getElementById('lockBtn').innerText = this.isLocked ? "Unlock Edits" : "Lock Edits"; document.getElementById('appBody').classList.toggle('locked-mode'); }
+            
+            showBrowseModal() { 
+                document.getElementById('browseModal').classList.add('open'); 
+                const d = this.db.folders[this.db.currentFolder][this.db.currentDeck] || []; 
+                document.getElementById('browseGrid').innerHTML = d.map((c, i) => `
+                    <div class="mini-card">
+                        <button class="mini-edit-btn" onclick="app.jumpToEdit(${i})">Edit</button>
+                        <div class="mini-q">Q ${i+1}</div>
+                        <div class="mini-a">${c.q}</div>
+                        <div style="margin:10px 0; border-top:1px solid #eee"></div>
+                        <div class="mini-a">${c.a}</div>
+                    </div>`).join(''); 
+            }
+            jumpToEdit(i) { this.closeBrowseModal(); this.changeCard(i).then(() => setTimeout(() => this.showEditCardModal(), 200)); }
+            closeBrowseModal() { document.getElementById('browseModal').classList.remove('open'); }
+            
+            showAddCardModal() { 
+                this.isEditingCard = false; 
+                document.getElementById('modalTitle').innerText = "Add Card"; 
+                document.getElementById('qIn').value=''; 
+                document.getElementById('aIn').value=''; 
+                document.getElementById('cardModal').classList.add('open'); 
+            }
+            
+            showEditCardModal() { 
+                if(this.isLocked) return; 
+                const d = this.db.folders[this.db.currentFolder][this.db.currentDeck]; 
+                if(!d || !d[this.idx]) return; 
+                this.isEditingCard = true; 
+                document.getElementById('modalTitle').innerText = "Edit Card";
+                document.getElementById('qIn').value = d[this.idx].q; 
+                document.getElementById('aIn').value = d[this.idx].a; 
+                document.getElementById('cardModal').classList.add('open'); 
+            }
+            
+            closeCardModal() { document.getElementById('cardModal').classList.remove('open'); }
+            
+            saveCardData() { 
+                const q = document.getElementById('qIn').value.trim(); 
+                const a = document.getElementById('aIn').value.trim(); 
+                if(!q || !a) return;
+                const d = this.db.folders[this.db.currentFolder][this.db.currentDeck]; 
+                if(this.isEditingCard) { d[this.idx] = {q, a}; } else { d.push({q, a}); this.idx = d.length - 1; }
+                this.save(); this.render(); this.closeCardModal(); 
+            }
+
+            showMagicModal() { document.getElementById('magicModal').classList.add('open'); }
+            closeMagicModal() { document.getElementById('magicModal').classList.remove('open'); }
+            generateFromNotes() { 
+                const t = document.getElementById('magicInput').value; 
+                t.split('\n').forEach(l => { 
+                    let p = l.split(/[:\-–]/); 
+                    if(p.length >= 2) this.db.folders[this.db.currentFolder][this.db.currentDeck].push({q:p[0].trim(), a:p[1].trim()}); 
+                }); 
+                this.save(); this.render(); this.closeMagicModal(); 
+            }
+            
+            showFolderModal() { document.getElementById('folderModal').classList.add('open'); }
+            addFolder() { 
+                const n = document.getElementById('folderNameInput').value.trim(); 
+                if(n){ if(!this.db.folders[n]) this.db.folders[n] = {}; this.save(); this.render(); document.getElementById('folderModal').classList.remove('open'); document.getElementById('folderNameInput').value = ''; }
+            }
+            
+            showDeckModal() { 
+                document.getElementById('folderSelect').innerHTML = Object.keys(this.db.folders).map(f=>`<option value="${f}">${f}</option>`).join(''); 
+                document.getElementById('deckModal').classList.add('open'); 
+            }
+            handleDeckSubmit() { 
+                const n = document.getElementById('deckNameInput').value.trim(); 
+                const f = document.getElementById('folderSelect').value; 
+                if(n && f){ if(!this.db.folders[f][n]) this.db.folders[f][n] = []; this.db.currentFolder = f; this.db.currentDeck = n; this.idx = 0; this.save(); this.render(); document.getElementById('deckModal').classList.remove('open'); document.getElementById('deckNameInput').value = ''; }
+            }
+
+            openDeckMenu(e, f, d) { 
+                e.stopPropagation(); 
+                const m = document.getElementById('deckDropdown'); 
+                m.style.display = 'flex'; 
+                m.style.top = `${e.clientY}px`; 
+                m.style.left = `${e.clientX}px`; 
+                
+                document.getElementById('dropRename').onclick = () => this.showDeckRenameModal(f, d);
+                document.getElementById('dropDel').onclick = () => {
+                    if(confirm(`Delete deck "${d}"?`)) {
+                        delete this.db.folders[f][d]; 
+                        if(this.db.currentDeck === d) { this.db.currentDeck = null; this.idx = 0; }
+                        this.save(); this.render();
+                    }
+                }; 
+            }
+
+            /* --- Rename Deck Logic --- */
+            showDeckRenameModal(f, d) {
+                this.deckToRename = { f, d };
+                document.getElementById('deckRenameInput').value = d;
+                document.getElementById('deckRenameModal').classList.add('open');
+            }
+            closeDeckRenameModal() { document.getElementById('deckRenameModal').classList.remove('open'); }
+            saveDeckRename() {
+                const n = document.getElementById('deckRenameInput').value.trim();
+                const { f, d } = this.deckToRename;
+                if(n && n !== d) {
+                    this.db.folders[f][n] = this.db.folders[f][d];
+                    delete this.db.folders[f][d];
+                    if(this.db.currentDeck === d) this.db.currentDeck = n;
+                    this.save(); this.render(); this.closeDeckRenameModal();
+                } else { this.closeDeckRenameModal(); }
+            }
+
+            showFolderEditModal(e, f) { e.stopPropagation(); this.folderToEdit = f; document.getElementById('folderEditInput').value = f; document.getElementById('folderEditModal').classList.add('open'); }
+            closeFolderEditModal() { document.getElementById('folderEditModal').classList.remove('open'); }
+            saveFolderRename() { 
+                const n = document.getElementById('folderEditInput').value.trim(); 
+                if(n && n !== this.folderToEdit){
+                    this.db.folders[n] = this.db.folders[this.folderToEdit]; 
+                    delete this.db.folders[this.folderToEdit]; 
+                    if(this.db.currentFolder === this.folderToEdit) this.db.currentFolder = n;
+                    this.save(); this.render(); this.closeFolderEditModal();
+                } else { this.closeFolderEditModal(); }
+            }
+        }
+        const app = new GwyneApp();
+    </script>
+</body>
+</html>
